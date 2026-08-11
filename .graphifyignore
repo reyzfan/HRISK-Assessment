@@ -1,0 +1,10 @@
+# Graphify ignore rules
+# Exclude read-only reference code and generated/vendor output.
+gophish-master/
+node_modules/
+.next/
+out/
+build/
+dist/
+coverage/
+graphify-out/

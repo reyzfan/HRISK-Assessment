@@ -1,0 +1,123 @@
+// HumanRisk AI — Database Schema
+// Learn more: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─── Admin Users ───────────────────────────
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String
+  role      String   @default("admin") // admin | superadmin
+  createdAt DateTime @default(now()) @map("created_at")
+
+  campaigns Campaign[]
+
+  @@map("users")
+}
+
+// ─── Employees / Targets ──────────────────────────────────
+model Target {
+  id         String   @id @default(cuid())
+  email      String   @unique
+  name       String
+  department String
+  position   String?
+  riskScore  Int      @default(50) @map("risk_score") // 0-100, base = 50
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  campaignResults CampaignResult[]
+
+  @@map("targets")
+}
+
+// ─── Phishing Campaigns ──────────────────
+model Campaign {
+  id           String        @id @default(cuid())
+  name         String
+  scenario     String
+  status       String        @default("draft") // draft | sending | active | completed
+  smtpConfigId String?       @map("smtp_config_id")
+  createdById  String        @map("created_by")
+  createdAt    DateTime      @default(now()) @map("created_at")
+
+  createdBy     User            @relation(fields: [createdById], references: [id])
+  smtpConfig    SmtpConfig?     @relation(fields: [smtpConfigId], references: [id])
+  campaignResults CampaignResult[]
+  emailTemplate  EmailTemplate?
+
+  @@map("campaigns")
+}
+
+// ─── Campaign Results (tracking per target per campaign) ──
+model CampaignResult {
+  id                  String    @id @default(cuid())
+  campaignId          String    @map("campaign_id")
+  targetId            String    @map("target_id")
+  token               String    @unique // cryptographic hash for tracking
+  emailSentAt         DateTime? @map("email_sent_at")
+  emailOpenedAt       DateTime? @map("email_opened_at")
+  linkClickedAt       DateTime? @map("link_clicked_at")
+  reportedAt          DateTime? @map("reported_at")
+  dataSubmittedAt     DateTime? @map("data_submitted_at")
+  trainingCompletedAt DateTime? @map("training_completed_at")
+  quizScore           Int?      @map("quiz_score") // 0-3 correct answers
+  riskScoreDelta      Int       @default(0) @map("risk_score_delta") // change applied to target
+
+  campaign Campaign @relation(fields: [campaignId], references: [id])
+  target   Target   @relation(fields: [targetId], references: [id])
+
+  @@map("campaign_results")
+}
+
+// ─── Email Templates (AI-generated + manual) ─────────────
+model EmailTemplate {
+  id             String   @id @default(cuid())
+  name           String
+  subject        String
+  htmlBody       String   @map("html_body")
+  senderName     String   @map("sender_name")
+  scenarioType   String   @map("scenario_type")
+  isAiGenerated  Boolean  @default(false) @map("is_ai_generated")
+  campaignId     String?  @unique @map("campaign_id") // one template per campaign
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  campaign Campaign? @relation(fields: [campaignId], references: [id])
+
+  @@map("email_templates")
+}
+
+// ─── Training Quizzes ─────────────────────────────────────
+model TrainingQuiz {
+  id             String   @id @default(cuid())
+  scenarioType   String   @map("scenario_type")
+  question       String
+  optionsJson    String   @map("options_json") // JSON array of 4 options
+  correctAnswer  Int      @map("correct_answer") // index of correct option (0-3)
+  explanation    String
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  @@map("training_quizzes")
+}
+
+// ─── SMTP Configs (sending profiles) ─────────────────────
+model SmtpConfig {
+  id          String   @id @default(cuid())
+  name        String
+  host        String
+  port        Int      @default(587)
+  username    String
+  fromAddress String   @map("from_address")
+  provider    String?  // resend | brevo | sendgrid | custom
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  campaigns Campaign[]
+
+  @@map("smtp_configs")
+}
